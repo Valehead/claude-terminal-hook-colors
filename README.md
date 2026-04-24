@@ -1,4 +1,4 @@
-# Claude Terminal Colors
+# Claude Terminal Hook Colors
 
 Visual feedback for Claude Code sessions in Windows Terminal. Each tab independently changes color based on Claude's state, so you can tell at a glance which tabs need your attention.
 
@@ -19,12 +19,12 @@ Colors reset to your default terminal theme after 15 seconds (configurable).
 ## Install
 
 ```powershell
-git clone https://github.com/nick-vales-114980/claude-terminal-colors.git
-cd claude-terminal-colors
+git clone https://github.com/nick-vales-114980/claude-terminal-hook-colors.git
+cd claude-terminal-hook-colors
 pwsh ./install.ps1
 ```
 
-This copies the hook scripts to `~/.claude/hooks/terminal-colors/`, compiles a native DLL for faster startup, and adds the hook configuration to your Claude Code settings.
+This copies the hook scripts to `~/.claude/hooks/terminal-hook-colors/`, compiles a native DLL for faster startup, and adds the hook configuration to your Claude Code settings.
 
 ## Uninstall
 
@@ -34,7 +34,7 @@ pwsh ./install.ps1 -Uninstall
 
 ## Customization
 
-Edit `~/.claude/hooks/terminal-colors/hooks/config.json`:
+Edit `~/.claude/hooks/terminal-hook-colors/hooks/config.json`:
 
 ```json
 {
@@ -57,7 +57,7 @@ Edit `~/.claude/hooks/terminal-colors/hooks/config.json`:
 - **stopResetDelaySeconds** controls how long the green "stopped" color shows before resetting
 - **debug** enables logging to `hooks/hook-debug.log`
 
-To swap sounds, drop `.wav` files into `~/.claude/hooks/terminal-colors/sounds/` and update the config.
+To swap sounds, drop `.wav` files into `~/.claude/hooks/terminal-hook-colors/sounds/` and update the config.
 
 ## How It Works
 

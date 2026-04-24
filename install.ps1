@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs or uninstalls Claude Terminal Colors hooks.
+    Installs or uninstalls Claude Terminal Hook Colors hooks.
 
 .DESCRIPTION
     Copies hook scripts and sound files to the install location, then merges
@@ -13,12 +13,12 @@
     Overwrite existing files without prompting.
 
 .PARAMETER InstallPath
-    Override the default install location (~/.claude/hooks/terminal-colors).
+    Override the default install location (~/.claude/hooks/terminal-hook-colors).
 
 .EXAMPLE
     pwsh ./install.ps1
     pwsh ./install.ps1 -Uninstall
-    pwsh ./install.ps1 -InstallPath "D:\my-hooks\terminal-colors"
+    pwsh ./install.ps1 -InstallPath "D:\my-hooks\terminal-hook-colors"
 #>
 param(
     [switch]$Uninstall,
@@ -32,14 +32,14 @@ $claudeDir = Join-Path $HOME '.claude'
 $settingsPath = Join-Path $claudeDir 'settings.json'
 
 if (-not $InstallPath) {
-    $InstallPath = Join-Path $claudeDir 'hooks' 'terminal-colors'
+    $InstallPath = Join-Path $claudeDir 'hooks' 'terminal-hook-colors'
 }
 
 $hooksInstallPath = Join-Path $InstallPath 'hooks'
 $soundsInstallPath = Join-Path $InstallPath 'sounds'
 
 # Marker used to identify our hooks in settings.json
-$hookMarker = 'terminal-colors'
+$hookMarker = 'terminal-hook-colors'
 
 function Test-Prerequisites {
     if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -164,7 +164,7 @@ function Add-HookEntries {
 if (-not (Test-Prerequisites)) { exit 1 }
 
 if ($Uninstall) {
-    Write-Host "`nUninstalling Claude Terminal Colors..." -ForegroundColor Yellow
+    Write-Host "`nUninstalling Claude Terminal Hook Colors..." -ForegroundColor Yellow
 
     $settings = Read-Settings
     $settings = Remove-HookEntries $settings
@@ -192,7 +192,7 @@ if ($Uninstall) {
 
 # --- Install ---
 
-Write-Host "`nInstalling Claude Terminal Colors..." -ForegroundColor Cyan
+Write-Host "`nInstalling Claude Terminal Hook Colors..." -ForegroundColor Cyan
 Write-Host "  Install path: $InstallPath" -ForegroundColor DarkGray
 
 # Copy files
