@@ -211,6 +211,36 @@ Copy-Item (Join-Path $repoRoot 'hooks' '*') $hooksInstallPath -Force
 Copy-Item (Join-Path $repoRoot 'sounds' '*') $soundsInstallPath -Force
 Write-Host "  Copied hooks and sounds" -ForegroundColor Green
 
+# Configuration prompts
+$configPath = Join-Path $hooksInstallPath 'config.json'
+$config = Get-Content $configPath -Raw | ConvertFrom-Json
+
+Write-Host ""
+$enableSounds = Read-Host "  Enable notification sounds? [Y/n]"
+if ($enableSounds -eq 'n') {
+    $config.sounds.stop = $null
+    $config.sounds.notification = $null
+    Write-Host "  Sounds disabled" -ForegroundColor DarkGray
+} else {
+    Write-Host "  Sounds enabled" -ForegroundColor DarkGray
+}
+
+Write-Host ""
+Write-Host "  Default colors (enter to keep, or provide rgb:RR/GG/BB):" -ForegroundColor DarkGray
+Write-Host "    Hex to OSC format: #4d0000 becomes rgb:4d/00/00" -ForegroundColor DarkGray
+
+$customProcessing = Read-Host "  Processing color [dark red: $($config.colors.processing)]"
+if ($customProcessing) { $config.colors.processing = $customProcessing }
+
+$customStopped = Read-Host "  Stopped color    [dark green: $($config.colors.stopped)]"
+if ($customStopped) { $config.colors.stopped = $customStopped }
+
+$customPermission = Read-Host "  Permission color [purple: $($config.colors.permission)]"
+if ($customPermission) { $config.colors.permission = $customPermission }
+
+$config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+Write-Host "  Config saved" -ForegroundColor Green
+
 # Compile ConsoleApi DLL for faster hook startup
 $csPath = Join-Path $hooksInstallPath 'ConsoleApi.cs'
 $dllPath = Join-Path $hooksInstallPath 'ConsoleApi.dll'
