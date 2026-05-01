@@ -2,13 +2,26 @@
 
 Visual feedback for Claude Code sessions in Windows Terminal. Each tab independently changes color based on Claude's state, so you can tell at a glance which tabs need your attention.
 
-| State | Color | Meaning |
-|-------|-------|---------|
-| Processing | Dark red | Claude is working |
-| Stopped | Dark green | Claude finished, needs your input |
-| Permission prompt | Purple | Claude is waiting for permission |
+| State | Meaning |
+|-------|---------|
+| Processing | Claude is working |
+| Stopped | Claude finished, needs your input |
+| Permission prompt | Claude is waiting for permission |
 
 Colors reset to your default terminal theme after 15 seconds (configurable).
+
+## Color Profiles
+
+Pick from a curated set during install, or define your own. Each profile uses three colors that map to the states above:
+
+| Profile | Vibe | Processing / Permission / Stopped |
+|---------|------|-----------------------------------|
+| **Classic** *(default)* | Bold traffic-light | Dark red / Purple / Dark green |
+| **Ocean** | Cool blues and greens | Deep navy / Indigo / Teal |
+| **Sunset** | Warm tones | Maroon / Magenta / Mustard |
+| **Forest** | Earthy / natural | Rust / Plum / Forest green |
+| **Mono** | Subtle low-contrast | Near-black / Slate / Mid gray |
+| **Custom** | Your choice | Enter your own `rgb:RR/GG/BB` triples |
 
 ## Prerequisites
 
@@ -24,7 +37,42 @@ cd claude-terminal-hook-colors
 pwsh ./install.ps1
 ```
 
-This copies the hook scripts to `~/.claude/hooks/terminal-hook-colors/`, compiles a native DLL for faster startup, and adds the hook configuration to your Claude Code settings.
+The installer asks you to pick a color profile and whether to enable notification sounds, compiles a native DLL for faster startup, and registers the hooks in your Claude Code settings. The hook scripts run directly from the cloned repo — nothing is copied to your user profile.
+
+## Reconfigure
+
+Re-run the installer at any time to change your profile, toggle sounds, or refresh the hook registration:
+
+```powershell
+pwsh ./install.ps1
+```
+
+When an existing install is detected, you get a menu:
+
+```
+1) Change color profile
+2) Toggle sounds on/off
+3) Reconfigure everything (profile + sounds)
+4) Reinstall hooks (refresh settings.json + recompile DLL)
+5) Uninstall
+6) Cancel
+```
+
+Each option only touches what it needs to — your other config (e.g. `stopResetDelaySeconds`, `debug`) and the working hook registration are preserved.
+
+### Non-interactive flags
+
+Useful for scripted setup or CI:
+
+```powershell
+pwsh ./install.ps1 -Palette ocean -Sounds off
+pwsh ./install.ps1 -Palette sunset
+pwsh ./install.ps1 -Sounds on
+```
+
+`-Palette` accepts `classic`, `ocean`, `sunset`, `forest`, or `mono`. `-Sounds` accepts `on` or `off`.
+
+These flags only update `config.json`. They do **not** recompile the DLL or refresh the hook entries in `settings.json` — if you've moved the repo, run the installer interactively and pick option 4 (Reinstall hooks) instead.
 
 ## Uninstall
 
@@ -34,10 +82,11 @@ pwsh ./install.ps1 -Uninstall
 
 ## Customization
 
-Edit `~/.claude/hooks/terminal-hook-colors/hooks/config.json`:
+For most users the profile picker is enough. To hand-edit, open `hooks/config.json`:
 
 ```json
 {
+  "profile": "classic",
   "colors": {
     "processing": "rgb:4d/00/00",
     "stopped": "rgb:00/4d/00",
@@ -48,14 +97,17 @@ Edit `~/.claude/hooks/terminal-hook-colors/hooks/config.json`:
     "notification": "notification.wav"
   },
   "stopResetDelaySeconds": 15,
-  "debug": false
+  "debug": false,
+  "palettes": { "...": "..." }
 }
 ```
 
-- **Colors** use OSC `rgb:RR/GG/BB` format (hex pairs separated by `/`)
-- **Sounds** are paths relative to the `sounds/` directory, or absolute paths
-- **stopResetDelaySeconds** controls how long the green "stopped" color shows before resetting
+- **profile** is the active palette key (`classic`, `ocean`, `sunset`, `forest`, `mono`, or `custom`); set by the installer
+- **colors** are the resolved values the hooks actually read, in OSC `rgb:RR/GG/BB` format. The installer keeps these in sync with `profile`. If you set `profile` to `custom`, edit `colors` directly.
+- **sounds** are paths relative to the `sounds/` directory, or absolute paths; `null` disables a sound
+- **stopResetDelaySeconds** controls how long the "stopped" color shows before resetting
 - **debug** enables logging to `hooks/hook-debug.log`
+- **palettes** holds the curated profile definitions; you generally don't need to touch this
 
 To swap sounds, drop `.wav` files into `~/.claude/hooks/terminal-hook-colors/sounds/` and update the config.
 
