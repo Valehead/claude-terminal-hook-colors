@@ -14,14 +14,14 @@ Colors reset to your default terminal theme after 15 seconds (configurable).
 
 Pick from a curated set during install, or define your own. Each profile uses three colors that map to the states above:
 
-| Profile | Vibe | Processing / Permission / Stopped |
-|---------|------|-----------------------------------|
-| **Classic** *(default)* | Bold traffic-light | Dark red / Purple / Dark green |
-| **Ocean** | Cool blues and greens | Deep navy / Indigo / Teal |
-| **Sunset** | Warm tones | Maroon / Magenta / Mustard |
-| **Forest** | Earthy / natural | Rust / Plum / Forest green |
-| **Mono** | Subtle low-contrast | Near-black / Slate / Mid gray |
-| **Custom** | Your choice | Enter your own `rgb:RR/GG/BB` triples |
+| Profile | Vibe | Processing | Permission | Stopped |
+|---------|------|------------|------------|---------|
+| **Classic** *(default)* | Bold traffic-light | ![](https://img.shields.io/badge/rgb%3A4d%2F00%2F00-4d0000?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A4a%2F00%2F80-4a0080?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A00%2F4d%2F00-004d00?style=for-the-badge) |
+| **Ocean** | Cool blues and greens | ![](https://img.shields.io/badge/rgb%3A00%2F22%2F55-002255?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A2a%2F00%2F6e-2a006e?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A00%2F4d%2F4d-004d4d?style=for-the-badge) |
+| **Sunset** | Warm tones | ![](https://img.shields.io/badge/rgb%3A5a%2F15%2F00-5a1500?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A5a%2F00%2F3d-5a003d?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A55%2F4a%2F00-554a00?style=for-the-badge) |
+| **Forest** | Earthy / natural | ![](https://img.shields.io/badge/rgb%3A4a%2F2a%2F00-4a2a00?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A3a%2F15%2F3a-3a153a?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A0d%2F3d%2F1a-0d3d1a?style=for-the-badge) |
+| **Mono** | Subtle low-contrast | ![](https://img.shields.io/badge/rgb%3A20%2F20%2F20-202020?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A2a%2F2a%2F4a-2a2a4a?style=for-the-badge) | ![](https://img.shields.io/badge/rgb%3A38%2F38%2F38-383838?style=for-the-badge) |
+| **Custom** | Your choice | Enter your own `rgb:RR/GG/BB` triples | | |
 
 ## Prerequisites
 
