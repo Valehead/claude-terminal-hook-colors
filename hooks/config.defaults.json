@@ -14,35 +14,35 @@
   "palettes": {
     "classic": {
       "name": "Classic",
-      "description": "Original bold traffic-light: dark red / dark green / purple",
+      "description": "Original bold traffic-light: dark red / purple / dark green",
       "processing": "rgb:4d/00/00",
       "stopped": "rgb:00/4d/00",
       "permission": "rgb:4a/00/80"
     },
     "ocean": {
       "name": "Ocean",
-      "description": "Cool blues and greens: deep navy / teal / indigo",
+      "description": "Cool blues and greens: deep navy / indigo / teal",
       "processing": "rgb:00/22/55",
       "stopped": "rgb:00/4d/4d",
       "permission": "rgb:2a/00/6e"
     },
     "sunset": {
       "name": "Sunset",
-      "description": "Warm tones: maroon / mustard / magenta",
+      "description": "Warm tones: maroon / magenta / mustard",
       "processing": "rgb:5a/15/00",
       "stopped": "rgb:55/4a/00",
       "permission": "rgb:5a/00/3d"
     },
     "forest": {
       "name": "Forest",
-      "description": "Earthy / natural: rust / forest green / plum",
+      "description": "Earthy / natural: rust / plum / forest green",
       "processing": "rgb:4a/2a/00",
       "stopped": "rgb:0d/3d/1a",
       "permission": "rgb:3a/15/3a"
     },
     "mono": {
       "name": "Mono",
-      "description": "Subtle low-contrast: near-black / mid gray / slate",
+      "description": "Subtle low-contrast: near-black / slate / mid gray",
       "processing": "rgb:20/20/20",
       "stopped": "rgb:38/38/38",
       "permission": "rgb:2a/2a/4a"

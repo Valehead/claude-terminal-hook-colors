@@ -14,13 +14,13 @@ Colors reset to your default terminal theme after 15 seconds (configurable).
 
 Pick from a curated set during install, or define your own. Each profile uses three colors that map to the states above:
 
-| Profile | Vibe | Processing / Stopped / Permission |
+| Profile | Vibe | Processing / Permission / Stopped |
 |---------|------|-----------------------------------|
-| **Classic** *(default)* | Bold traffic-light | Dark red / Dark green / Purple |
-| **Ocean** | Cool blues and greens | Deep navy / Teal / Indigo |
-| **Sunset** | Warm tones | Maroon / Mustard / Magenta |
-| **Forest** | Earthy / natural | Rust / Forest green / Plum |
-| **Mono** | Subtle low-contrast | Near-black / Mid gray / Slate |
+| **Classic** *(default)* | Bold traffic-light | Dark red / Purple / Dark green |
+| **Ocean** | Cool blues and greens | Deep navy / Indigo / Teal |
+| **Sunset** | Warm tones | Maroon / Magenta / Mustard |
+| **Forest** | Earthy / natural | Rust / Plum / Forest green |
+| **Mono** | Subtle low-contrast | Near-black / Slate / Mid gray |
 | **Custom** | Your choice | Enter your own `rgb:RR/GG/BB` triples |
 
 ## Prerequisites
