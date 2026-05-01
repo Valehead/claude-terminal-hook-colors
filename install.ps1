@@ -189,6 +189,49 @@ function Get-PaletteOrder {
     return @('classic', 'ocean', 'sunset', 'forest', 'mono')
 }
 
+function ConvertTo-RgbBytes {
+    # "rgb:4d/00/00" -> @(77, 0, 0). Returns $null on parse failure.
+    param([string]$RgbString)
+    if (-not $RgbString) { return $null }
+    $hex = ($RgbString -replace '^rgb:', '') -replace '/', ''
+    if ($hex.Length -ne 6) { return $null }
+    try {
+        return @(
+            [Convert]::ToInt32($hex.Substring(0, 2), 16),
+            [Convert]::ToInt32($hex.Substring(2, 2), 16),
+            [Convert]::ToInt32($hex.Substring(4, 2), 16)
+        )
+    } catch {
+        return $null
+    }
+}
+
+function Format-Swatch {
+    # Wraps $Text in a 24-bit ANSI background matching $RgbString, with a
+    # contrasting foreground so it's legible on either dark or light hex values.
+    param([string]$RgbString, [string]$Text)
+    $rgb = ConvertTo-RgbBytes $RgbString
+    if (-not $rgb) { return " $Text " }
+    $luminance = (0.299 * $rgb[0]) + (0.587 * $rgb[1]) + (0.114 * $rgb[2])
+    $fg = if ($luminance -lt 128) { '255;255;255' } else { '0;0;0' }
+    $esc = [char]27
+    return "$esc[48;2;$($rgb[0]);$($rgb[1]);$($rgb[2])m$esc[38;2;${fg}m $Text $esc[0m"
+}
+
+function Write-PaletteStateLines {
+    param($Palette)
+    $rows = @(
+        @{ Label = 'Processing'; Hex = $Palette.processing; Meaning = 'Claude is working' },
+        @{ Label = 'Stopped';    Hex = $Palette.stopped;    Meaning = 'Claude finished, needs your input' },
+        @{ Label = 'Permission'; Hex = $Palette.permission; Meaning = 'Claude is waiting for approval' }
+    )
+    foreach ($row in $rows) {
+        $label = $row.Label.PadRight(11)
+        $swatch = Format-Swatch -RgbString $row.Hex -Text $row.Hex
+        Write-Host ("       {0} {1}  {2}" -f $label, $swatch, $row.Meaning) -ForegroundColor DarkGray
+    }
+}
+
 function Show-PalettePicker {
     param(
         [Parameter(Mandatory)] $Palettes,
@@ -198,6 +241,7 @@ function Show-PalettePicker {
     $order = Get-PaletteOrder
     Write-Host ""
     Write-Host "  Choose a color profile:" -ForegroundColor Cyan
+    Write-Host ""
     for ($i = 0; $i -lt $order.Count; $i++) {
         $key = $order[$i]
         $p = $Palettes.$key
@@ -205,7 +249,8 @@ function Show-PalettePicker {
         $defaultMark = if ($key -eq 'classic' -and -not $CurrentKey) { ' (default)' } else { '' }
         Write-Host ("    {0}) {1}{2}{3}" -f ($i + 1), $p.name, $defaultMark, $marker) -ForegroundColor White
         Write-Host ("       {0}" -f $p.description) -ForegroundColor DarkGray
-        Write-Host ("       processing={0}  stopped={1}  permission={2}" -f $p.processing, $p.stopped, $p.permission) -ForegroundColor DarkGray
+        Write-PaletteStateLines $p
+        Write-Host ""
     }
     $customIdx = $order.Count + 1
     $customMarker = if ($CurrentKey -eq 'custom') { ' (current)' } else { '' }
