@@ -42,8 +42,8 @@ function Find-TargetConsolePid {
     Write-HookDebug "[find-pid] Chain: $(($chain | ForEach-Object { "$($_.Name)(PID $($_.ProcessId))" }) -join ' -> ')"
 
     for ($i = 0; $i -lt $chain.Count; $i++) {
-        if ($chain[$i].Name -eq 'pwsh.exe' -and ($i + 1) -lt $chain.Count -and $chain[$i + 1].Name -eq 'WindowsTerminal.exe') {
-            Write-HookDebug "[find-pid] Found pwsh under WindowsTerminal: $($chain[$i].ProcessId)"
+        if (($i + 1) -lt $chain.Count -and $chain[$i + 1].Name -eq 'WindowsTerminal.exe') {
+            Write-HookDebug "[find-pid] Found shell under WindowsTerminal: $($chain[$i].Name) ($($chain[$i].ProcessId))"
             return $chain[$i].ProcessId
         }
     }
