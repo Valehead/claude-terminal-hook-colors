@@ -59,12 +59,16 @@ function Find-TargetConsolePid {
     return $null
 }
 
-function Write-OscToConsole {
-    param([string]$Payload)
+function Get-TargetConsolePid {
     if (-not $script:CachedTargetPid) {
         $script:CachedTargetPid = Find-TargetConsolePid
     }
-    $targetPid = $script:CachedTargetPid
+    return $script:CachedTargetPid
+}
+
+function Write-OscToConsole {
+    param([string]$Payload)
+    $targetPid = Get-TargetConsolePid
     if (-not $targetPid) { return $false }
 
     [void][ConsoleApi]::FreeConsole()
@@ -95,6 +99,54 @@ function Set-TerminalColor {
 
 function Reset-TerminalColor {
     [void](Write-OscToConsole "$($script:Esc)]111$($script:Bel)$($script:Esc)]104;264$($script:Bel)")
+}
+
+function Get-ResetCancelEventName {
+    $targetPid = Get-TargetConsolePid
+    if (-not $targetPid) { return $null }
+    return "Claude-Color-Reset-$targetPid"
+}
+
+function Wait-ColorResetCancellable {
+    param([int]$TimeoutMs)
+
+    $name = Get-ResetCancelEventName
+    if (-not $name) {
+        Write-HookDebug "[wait] No target PID; falling back to plain sleep"
+        Start-Sleep -Milliseconds $TimeoutMs
+        return $false
+    }
+
+    $createdNew = $false
+    $evt = New-Object System.Threading.EventWaitHandle($false, [System.Threading.EventResetMode]::AutoReset, $name, [ref]$createdNew)
+    try {
+        [void]$evt.Reset()
+        $signaled = $evt.WaitOne($TimeoutMs)
+        Write-HookDebug "[wait] event '$name' signaled=$signaled (createdNew=$createdNew)"
+        return $signaled
+    } finally {
+        $evt.Dispose()
+    }
+}
+
+function Send-ColorResetCancel {
+    $name = Get-ResetCancelEventName
+    if (-not $name) {
+        Write-HookDebug "[signal] No target PID; skipping signal"
+        return
+    }
+
+    $evt = $null
+    if ([System.Threading.EventWaitHandle]::TryOpenExisting($name, [ref]$evt)) {
+        try {
+            [void]$evt.Set()
+            Write-HookDebug "[signal] set event '$name'"
+        } finally {
+            $evt.Dispose()
+        }
+    } else {
+        Write-HookDebug "[signal] no waiter for '$name'"
+    }
 }
 
 function Play-HookSound {

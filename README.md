@@ -128,6 +128,8 @@ Because the sequences target a specific console session via `AttachConsole`, onl
 
 The Win32 API calls are defined in `ConsoleApi.cs` and compiled to a DLL at install time against your local .NET runtime. This avoids recompiling on every hook invocation and keeps startup fast. If the DLL is missing, the hooks fall back to runtime compilation automatically.
 
+The post-stop reset is cancellable. Instead of an unconditional `Start-Sleep` followed by reset, the stop hook waits on a named `EventWaitHandle` keyed by the target console PID. When a new prompt arrives during that window, the prompt-submit hook signals the event, the waiter wakes early, and the reset is skipped — so the busy color set by the new prompt is not clobbered mid-execution. Each tab uses its own event name (different target PIDs), so tabs don't interfere with each other.
+
 ## Troubleshooting
 
 **Colors aren't changing**: Enable debug logging by setting `"debug": true` in `config.json`, then check `hooks/hook-debug.log` after triggering a hook. The log shows the process chain, PID targeting, and write results.
