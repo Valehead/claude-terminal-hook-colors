@@ -20,9 +20,17 @@
 .PARAMETER Sounds
     Set sound state non-interactively. One of: on, off.
 
+.PARAMETER SuppressWhenFocused
+    Skip notification sounds while the terminal window is in the foreground.
+    One of: on, off.
+
+.PARAMETER Volume
+    Notification volume from 0 (silent) to 10 (full).
+
 .EXAMPLE
     pwsh ./install.ps1
     pwsh ./install.ps1 -Palette ocean -Sounds off
+    pwsh ./install.ps1 -Sounds on -SuppressWhenFocused on -Volume 4
     pwsh ./install.ps1 -Uninstall
 #>
 param(
@@ -30,7 +38,11 @@ param(
     [ValidateSet('classic', 'ocean', 'sunset', 'forest', 'mono')]
     [string]$Palette,
     [ValidateSet('on', 'off')]
-    [string]$Sounds
+    [string]$Sounds,
+    [ValidateSet('on', 'off')]
+    [string]$SuppressWhenFocused,
+    [ValidateRange(0, 10)]
+    [Nullable[int]]$Volume
 )
 
 $ErrorActionPreference = 'Stop'
@@ -177,6 +189,21 @@ function Build-ConsoleApiDll {
         Write-Host "  Compiled ConsoleApi.dll" -ForegroundColor Green
     } catch {
         Write-Warning "  DLL compilation failed (hooks will fall back to runtime compilation): $_"
+    }
+}
+
+function Update-ConsoleApiDllIfStale {
+    # Self-heal: rebuild the DLL whenever the .cs source is newer or the
+    # DLL is missing, so users never have to think about a stale binary
+    # after pulling new code.
+    $csPath = Join-Path $hooksPath 'ConsoleApi.cs'
+    $dllPath = Join-Path $hooksPath 'ConsoleApi.dll'
+    if (-not [System.IO.File]::Exists($csPath)) { return }
+    $needsBuild = (-not [System.IO.File]::Exists($dllPath)) -or
+                  ((Get-Item $csPath).LastWriteTimeUtc -gt (Get-Item $dllPath).LastWriteTimeUtc)
+    if ($needsBuild) {
+        Write-Host "  ConsoleApi.dll is stale, rebuilding..." -ForegroundColor DarkGray
+        Build-ConsoleApiDll
     }
 }
 
@@ -334,6 +361,71 @@ function Set-SoundsOnConfig {
     }
 }
 
+function Set-FocusSuppressOnConfig {
+    param(
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] [ValidateSet('on', 'off')] [string]$State
+    )
+    $value = ($State -eq 'on')
+    $Config | Add-Member -NotePropertyName 'suppressSoundWhenFocused' -NotePropertyValue $value -Force
+}
+
+function Set-VolumeOnConfig {
+    param(
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] [double]$Volume
+    )
+    if ($Volume -lt 0) { $Volume = 0 }
+    if ($Volume -gt 1) { $Volume = 1 }
+    $Config | Add-Member -NotePropertyName 'volume' -NotePropertyValue $Volume -Force
+}
+
+function Get-CurrentFocusSuppress {
+    param($Config)
+    if ($Config.suppressSoundWhenFocused) { return 'on' } else { return 'off' }
+}
+
+function Get-CurrentVolume {
+    # Returns the display-form volume (0-10 int) from the underlying 0.0-1.0
+    # config value, or $null if no volume has been set yet so the caller can
+    # apply its own default.
+    param($Config)
+    if ($null -eq $Config.volume) { return $null }
+    return [int][math]::Round([double]$Config.volume * 10)
+}
+
+function Read-FocusSuppressChoice {
+    param([string]$CurrentState)
+    $defaultLabel = if ($CurrentState -eq 'on') { 'Y/n' } else { 'y/N' }
+    Write-Host ""
+    Write-Host "  Would you like sounds to be skipped if the window is still in focus?" -ForegroundColor DarkGray
+    Write-Host "  (this will cause sounds to only play while minimized or unfocused)" -ForegroundColor DarkGray
+    $resp = Read-Host "  [$defaultLabel]"
+    if ([string]::IsNullOrWhiteSpace($resp)) {
+        return $(if ($CurrentState -eq 'on') { 'on' } else { 'off' })
+    }
+    if ($resp -match '^[yY]') { return 'on' }
+    return 'off'
+}
+
+function Read-VolumeChoice {
+    param([Nullable[int]]$CurrentVolume)
+    $defaultVolume = 10
+    $effective = if ($null -ne $CurrentVolume) { [int]$CurrentVolume } else { $defaultVolume }
+    Write-Host ""
+    Write-Host "  What volume would you like notifications to play at?" -ForegroundColor DarkGray
+    Write-Host "  (0 is silent, 10 is full volume)" -ForegroundColor DarkGray
+    while ($true) {
+        $resp = Read-Host "  [Current Volume: $effective]"
+        if ([string]::IsNullOrWhiteSpace($resp)) { return $effective }
+        $parsed = 0
+        if ([int]::TryParse($resp, [ref]$parsed) -and $parsed -ge 0 -and $parsed -le 10) {
+            return $parsed
+        }
+        Write-Host "  Enter a whole number between 0 and 10." -ForegroundColor Yellow
+    }
+}
+
 function Read-SoundChoice {
     param([string]$CurrentState)
     $defaultLabel = if ($CurrentState -eq 'off') { 'y/N' } else { 'Y/n' }
@@ -369,7 +461,7 @@ function Show-ReconfigureMenu {
     Write-Host "  This installation is already configured (profile: $profileLabel, sounds: $soundLabel)." -ForegroundColor Cyan
     Write-Host "  What would you like to do?" -ForegroundColor Cyan
     Write-Host "    1) Change color profile" -ForegroundColor White
-    Write-Host "    2) Toggle sounds on/off" -ForegroundColor White
+    Write-Host "    2) Sound settings (on/off, focus suppression, volume)" -ForegroundColor White
     Write-Host "    3) Reconfigure everything (profile + sounds)" -ForegroundColor White
     Write-Host "    4) Reinstall hooks (refresh settings.json + recompile DLL)" -ForegroundColor White
     Write-Host "    5) Uninstall" -ForegroundColor White
@@ -419,13 +511,39 @@ function Invoke-FreshInstall {
     }
 
     # Sounds
+    $soundsState = $null
     if ($SoundsChoice) {
         Set-SoundsOnConfig -Config $config -State $SoundsChoice
+        $soundsState = $SoundsChoice
         Write-Host "  Sounds: $SoundsChoice" -ForegroundColor DarkGray
     } else {
-        $state = Read-SoundChoice -CurrentState 'on'
-        Set-SoundsOnConfig -Config $config -State $state
-        Write-Host "  Sounds $state" -ForegroundColor DarkGray
+        $soundsState = Read-SoundChoice -CurrentState 'on'
+        Set-SoundsOnConfig -Config $config -State $soundsState
+        Write-Host "  Sounds $soundsState" -ForegroundColor DarkGray
+    }
+
+    # Focus suppression
+    if ($SuppressWhenFocused) {
+        Set-FocusSuppressOnConfig -Config $config -State $SuppressWhenFocused
+        Write-Host "  Suppress when focused: $SuppressWhenFocused" -ForegroundColor DarkGray
+    } elseif ($soundsState -eq 'on') {
+        $sup = Read-FocusSuppressChoice -CurrentState 'off'
+        Set-FocusSuppressOnConfig -Config $config -State $sup
+        Write-Host "  Suppress when focused: $sup" -ForegroundColor DarkGray
+    } else {
+        Set-FocusSuppressOnConfig -Config $config -State 'off'
+    }
+
+    # Volume (UI is 0-10 int, stored as 0.0-1.0 double)
+    if ($null -ne $Volume) {
+        Set-VolumeOnConfig -Config $config -Volume ([double]$Volume / 10.0)
+        Write-Host "  Volume: $Volume" -ForegroundColor DarkGray
+    } elseif ($soundsState -eq 'on') {
+        $vol = Read-VolumeChoice -CurrentVolume 10
+        Set-VolumeOnConfig -Config $config -Volume ([double]$vol / 10.0)
+        Write-Host "  Volume: $vol" -ForegroundColor DarkGray
+    } else {
+        Set-VolumeOnConfig -Config $config -Volume 1.0
     }
 
     Save-Config $config
@@ -443,6 +561,8 @@ function Invoke-FreshInstall {
 function Invoke-Reconfigure {
     param([string]$PaletteChoice, [string]$SoundsChoice)
 
+    Update-ConsoleApiDllIfStale
+
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
     # Backfill palettes if user is on an old config.json that lacks them.
@@ -451,7 +571,7 @@ function Invoke-Reconfigure {
     }
 
     # Non-interactive path: apply flags silently.
-    if ($PaletteChoice -or $SoundsChoice) {
+    if ($PaletteChoice -or $SoundsChoice -or $SuppressWhenFocused -or ($null -ne $Volume)) {
         if ($PaletteChoice) {
             Set-PaletteOnConfig -Config $config -ProfileKey $PaletteChoice
             Write-Host "  Profile changed to: $PaletteChoice" -ForegroundColor Green
@@ -459,6 +579,14 @@ function Invoke-Reconfigure {
         if ($SoundsChoice) {
             Set-SoundsOnConfig -Config $config -State $SoundsChoice
             Write-Host "  Sounds set to: $SoundsChoice" -ForegroundColor Green
+        }
+        if ($SuppressWhenFocused) {
+            Set-FocusSuppressOnConfig -Config $config -State $SuppressWhenFocused
+            Write-Host "  Suppress when focused: $SuppressWhenFocused" -ForegroundColor Green
+        }
+        if ($null -ne $Volume) {
+            Set-VolumeOnConfig -Config $config -Volume ([double]$Volume / 10.0)
+            Write-Host "  Volume: $Volume" -ForegroundColor Green
         }
         Save-Config $config
         Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
@@ -478,10 +606,14 @@ function Invoke-Reconfigure {
             Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
         2 {
-            $current = Get-CurrentSoundState $config
-            $new = if ($current -eq 'on') { 'off' } else { 'on' }
-            Set-SoundsOnConfig -Config $config -State $new
-            Write-Host "  Sounds $new" -ForegroundColor Green
+            $state = Read-SoundChoice -CurrentState (Get-CurrentSoundState $config)
+            Set-SoundsOnConfig -Config $config -State $state
+            if ($state -eq 'on') {
+                $sup = Read-FocusSuppressChoice -CurrentState (Get-CurrentFocusSuppress $config)
+                Set-FocusSuppressOnConfig -Config $config -State $sup
+                $vol = Read-VolumeChoice -CurrentVolume (Get-CurrentVolume $config)
+                Set-VolumeOnConfig -Config $config -Volume ([double]$vol / 10.0)
+            }
             Save-Config $config
             Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
@@ -494,6 +626,12 @@ function Invoke-Reconfigure {
             Set-PaletteOnConfig -Config $config -ProfileKey $key -CustomColors $custom
             $state = Read-SoundChoice -CurrentState (Get-CurrentSoundState $config)
             Set-SoundsOnConfig -Config $config -State $state
+            if ($state -eq 'on') {
+                $sup = Read-FocusSuppressChoice -CurrentState (Get-CurrentFocusSuppress $config)
+                Set-FocusSuppressOnConfig -Config $config -State $sup
+                $vol = Read-VolumeChoice -CurrentVolume (Get-CurrentVolume $config)
+                Set-VolumeOnConfig -Config $config -Volume ([double]$vol / 10.0)
+            }
             Save-Config $config
             Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
@@ -520,6 +658,9 @@ function Write-InstallSummary {
     param($Config, [string]$Header = 'Install complete!')
     $profileLabel = if ($Config.profile) { $Config.profile } else { 'classic' }
     $soundLabel = Get-CurrentSoundState $Config
+    $focusLabel = Get-CurrentFocusSuppress $Config
+    $volumeValue = Get-CurrentVolume $Config
+    $volumeLabel = if ($null -ne $volumeValue) { "$volumeValue" } else { '10 (default)' }
 
     Write-Host "`n$Header" -ForegroundColor Green
     Write-Host @"
@@ -530,7 +671,7 @@ function Write-InstallSummary {
   Processing: $($Config.colors.processing)
   Stopped:    $($Config.colors.stopped)  (resets after $($Config.stopResetDelaySeconds)s)
   Permission: $($Config.colors.permission)
-  Sounds:     $soundLabel
+  Sounds:     $soundLabel  (suppress when focused: $focusLabel, volume: $volumeLabel)
 
   Reconfigure: pwsh $repoRoot\install.ps1
   Uninstall:   pwsh $repoRoot\install.ps1 -Uninstall

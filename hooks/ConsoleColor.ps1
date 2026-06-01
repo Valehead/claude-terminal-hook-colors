@@ -149,6 +149,49 @@ function Send-ColorResetCancel {
     }
 }
 
+function Test-TargetWindowFocused {
+    $hwnd = [ConsoleApi]::GetForegroundWindow()
+    if ($hwnd -eq [IntPtr]::Zero) {
+        Write-HookDebug "[focus] No foreground window"
+        return $false
+    }
+    $fgPid = [uint32]0
+    [void][ConsoleApi]::GetWindowThreadProcessId($hwnd, [ref]$fgPid)
+    if ($fgPid -eq 0) { return $false }
+
+    $allProcs = Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name
+    $procMap = @{}
+    foreach ($proc in $allProcs) { $procMap[[int]$proc.ProcessId] = $proc }
+
+    # Build ancestry of the hook process.
+    $ancestors = New-Object System.Collections.Generic.List[int]
+    $p = $PID
+    while ($p -and $p -ne 0 -and $procMap.ContainsKey([int]$p)) {
+        $ancestors.Add([int]$p)
+        $p = $procMap[[int]$p].ParentProcessId
+    }
+
+    $fgName = if ($procMap.ContainsKey([int]$fgPid)) { $procMap[[int]$fgPid].Name } else { '<unknown>' }
+
+    # Primary: foreground window is owned by a process in our ancestry
+    # (the WT/conhost hosting this session).
+    if ($ancestors.Contains([int]$fgPid)) {
+        Write-HookDebug "[focus] fgPid=$fgPid ($fgName) matches ancestor -> focused"
+        return $true
+    }
+
+    # Fallback: ancestry got detached (common when Claude Code re-spawns
+    # the hook). If foreground is a Windows Terminal process, treat as
+    # focused — best effort across multi-window WT setups.
+    if ($fgName -eq 'WindowsTerminal.exe') {
+        Write-HookDebug "[focus] fgPid=$fgPid is WindowsTerminal (ancestry detached) -> focused"
+        return $true
+    }
+
+    Write-HookDebug "[focus] fgPid=$fgPid ($fgName) not in ancestry [$($ancestors -join ',')] -> not focused"
+    return $false
+}
+
 function Play-HookSound {
     param(
         [string]$SoundName,
@@ -157,6 +200,11 @@ function Play-HookSound {
     $soundFile = $script:Config.sounds.$SoundName
     if (-not $soundFile) { return }
 
+    if ($script:Config.suppressSoundWhenFocused -and (Test-TargetWindowFocused)) {
+        Write-HookDebug "[sound] Suppressed (terminal window is focused)"
+        return
+    }
+
     if (-not [System.IO.Path]::IsPathRooted($soundFile)) {
         $soundFile = Join-Path $script:SoundsRoot $soundFile
     }
@@ -164,6 +212,19 @@ function Play-HookSound {
         Write-HookDebug "[sound] File not found: $soundFile"
         return
     }
+
+    $volume = if ($null -ne $script:Config.volume) { [double]$script:Config.volume } else { 1.0 }
+    if ($volume -lt 0) { $volume = 0 }
+    if ($volume -gt 1) { $volume = 1 }
+
+    # Scale to a 16-bit per-channel value and pack into a stereo DWORD
+    # (low word = left, high word = right). waveOutSetVolume on Vista+
+    # adjusts this process's audio session in the system mixer, which
+    # SoundPlayer (waveOut) then honors.
+    $perChannel = [uint32][math]::Round($volume * 0xFFFF)
+    $packed = $perChannel -bor ($perChannel -shl 16)
+    $rc = [ConsoleApi]::waveOutSetVolume([IntPtr]::Zero, $packed)
+    Write-HookDebug "[sound] waveOutSetVolume volume=$volume packed=0x$($packed.ToString('X8')) rc=$rc"
 
     $player = New-Object System.Media.SoundPlayer $soundFile
     if ($Sync) { $player.PlaySync() } else { $player.Play() }
