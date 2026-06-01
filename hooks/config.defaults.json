@@ -10,6 +10,8 @@
     "notification": "notification.wav"
   },
   "stopResetDelaySeconds": 15,
+  "suppressSoundWhenFocused": false,
+  "volume": 1.0,
   "debug": false,
   "palettes": {
     "classic": {
