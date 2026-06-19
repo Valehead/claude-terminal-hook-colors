@@ -65,7 +65,7 @@ function Test-Prerequisites {
         Write-Error "Claude Code settings not found at $settingsPath. Run 'claude' at least once first."
         return $false
     }
-    $wt = Get-AppxPackage Microsoft.WindowsTerminal* -ErrorAction SilentlyContinue
+    try { $wt = Get-AppxPackage Microsoft.WindowsTerminal* -ErrorAction SilentlyContinue } catch { $wt = $null }
     if (-not $wt) {
         Write-Warning "Windows Terminal not detected. These hooks are designed for Windows Terminal."
     }
