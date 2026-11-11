@@ -41,9 +41,14 @@ public class ConsoleApi {
     public static void ArmWatchdog(int timeoutMs, string logPath) {
         var t = new Thread(() => {
             Thread.Sleep(timeoutMs);
-            if (logPath != null) {
-                File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss") +
-                    " [watchdog] deadline of " + timeoutMs + "ms hit, exiting\r\n");
+            // PowerShell passes $null to a string parameter as "", so test for empty too.
+            if (!string.IsNullOrEmpty(logPath)) {
+                try {
+                    File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss") +
+                        " [watchdog] deadline of " + timeoutMs + "ms hit, exiting\r\n");
+                } catch (IOException) {
+                    // A locked log must not stop the exit, which is the watchdog's only job.
+                }
             }
             Environment.Exit(1);
         });
