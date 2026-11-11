@@ -183,8 +183,23 @@ function Build-ConsoleApiDll {
     $csPath = Join-Path $hooksPath 'ConsoleApi.cs'
     $dllPath = Join-Path $hooksPath 'ConsoleApi.dll'
     if (-not [System.IO.File]::Exists($csPath)) { return }
+    if ([System.IO.File]::Exists($dllPath)) {
+        try {
+            Remove-Item $dllPath -Force -ErrorAction Stop
+        } catch {
+            # A running hook loads the DLL with Add-Type, which locks the file.
+            $hookProcs = Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" |
+                Where-Object { $_.CommandLine -match [regex]::Escape($hooksPath) }
+            Write-Warning "  ConsoleApi.dll is in use and was not rebuilt. Hooks fall back to slower runtime compilation until it is."
+            if ($hookProcs) {
+                Write-Warning "  Hook processes holding it (stop them, then reinstall): PID $(($hookProcs.ProcessId) -join ', ')"
+            } else {
+                Write-Warning "  Close any pwsh.exe running a hooks\*.ps1 script, then reinstall. Error: $_"
+            }
+            return
+        }
+    }
     try {
-        if ([System.IO.File]::Exists($dllPath)) { Remove-Item $dllPath -Force }
         Add-Type -Path $csPath -OutputAssembly $dllPath -OutputType Library -ErrorAction Stop
         Write-Host "  Compiled ConsoleApi.dll" -ForegroundColor Green
     } catch {
