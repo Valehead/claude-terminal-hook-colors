@@ -11,10 +11,12 @@ $script:INVALID_HANDLE = [IntPtr]::new(-1)
 
 if (-not ([System.Management.Automation.PSTypeName]'ConsoleApi').Type) {
     $dllPath = Join-Path $script:HookRoot 'ConsoleApi.dll'
-    if ([System.IO.File]::Exists($dllPath)) {
+    $csPath = Join-Path $script:HookRoot 'ConsoleApi.cs'
+    if ([System.IO.File]::Exists($dllPath) -and
+        [System.IO.File]::GetLastWriteTimeUtc($dllPath) -ge [System.IO.File]::GetLastWriteTimeUtc($csPath)) {
         Add-Type -Path $dllPath
     } else {
-        Add-Type -TypeDefinition ([System.IO.File]::ReadAllText((Join-Path $script:HookRoot 'ConsoleApi.cs')))
+        Add-Type -TypeDefinition ([System.IO.File]::ReadAllText($csPath))
     }
 }
 
@@ -26,18 +28,37 @@ function Write-HookDebug {
     }
 }
 
+function Start-HookWatchdog {
+    param([int]$Seconds)
+    $logPath = if ($script:Config.debug) { Join-Path $script:HookRoot 'hook-debug.log' } else { $null }
+    [ConsoleApi]::ArmWatchdog($Seconds * 1000, $logPath)
+    Write-HookDebug "[watchdog] armed ${Seconds}s"
+}
+
+function Get-AncestorChain {
+    param(
+        [hashtable]$ProcMap,
+        [int]$StartPid
+    )
+    # ParentProcessId can name a dead parent whose PID was reused by a process
+    # already in the chain, so stop on the first repeated PID.
+    $seen = [System.Collections.Generic.HashSet[int]]::new()
+    $chain = [System.Collections.Generic.List[object]]::new()
+    $p = $StartPid
+    while ($p -and $p -ne 0 -and $ProcMap.ContainsKey([int]$p) -and $seen.Add([int]$p)) {
+        $entry = $ProcMap[[int]$p]
+        $chain.Add([PSCustomObject]@{ ProcessId = [int]$entry.ProcessId; Name = $entry.Name; ParentId = [int]$entry.ParentProcessId })
+        $p = $entry.ParentProcessId
+    }
+    return ,$chain
+}
+
 function Find-TargetConsolePid {
     $allProcs = Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name
     $procMap = @{}
     foreach ($proc in $allProcs) { $procMap[[int]$proc.ProcessId] = $proc }
 
-    $p = $PID
-    $chain = @()
-    while ($p -and $p -ne 0 -and $procMap.ContainsKey([int]$p)) {
-        $entry = $procMap[[int]$p]
-        $chain += [PSCustomObject]@{ ProcessId = [int]$entry.ProcessId; Name = $entry.Name; ParentId = [int]$entry.ParentProcessId }
-        $p = $entry.ParentProcessId
-    }
+    $chain = Get-AncestorChain -ProcMap $procMap -StartPid $PID
 
     Write-HookDebug "[find-pid] Chain: $(($chain | ForEach-Object { "$($_.Name)(PID $($_.ProcessId))" }) -join ' -> ')"
 
@@ -163,19 +184,13 @@ function Test-TargetWindowFocused {
     $procMap = @{}
     foreach ($proc in $allProcs) { $procMap[[int]$proc.ProcessId] = $proc }
 
-    # Build ancestry of the hook process.
-    $ancestors = New-Object System.Collections.Generic.List[int]
-    $p = $PID
-    while ($p -and $p -ne 0 -and $procMap.ContainsKey([int]$p)) {
-        $ancestors.Add([int]$p)
-        $p = $procMap[[int]$p].ParentProcessId
-    }
+    $ancestors = (Get-AncestorChain -ProcMap $procMap -StartPid $PID) | ForEach-Object { $_.ProcessId }
 
     $fgName = if ($procMap.ContainsKey([int]$fgPid)) { $procMap[[int]$fgPid].Name } else { '<unknown>' }
 
     # Primary: foreground window is owned by a process in our ancestry
     # (the WT/conhost hosting this session).
-    if ($ancestors.Contains([int]$fgPid)) {
+    if ($ancestors -contains [int]$fgPid) {
         Write-HookDebug "[focus] fgPid=$fgPid ($fgName) matches ancestor -> focused"
         return $true
     }

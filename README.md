@@ -72,7 +72,7 @@ pwsh ./install.ps1 -Sounds on
 
 `-Palette` accepts `classic`, `ocean`, `sunset`, `forest`, or `mono`. `-Sounds` accepts `on` or `off`.
 
-These flags only update `config.json`. They do **not** recompile the DLL or refresh the hook entries in `settings.json` — if you've moved the repo, run the installer interactively and pick option 4 (Reinstall hooks) instead.
+These flags update `config.json` and rebuild the DLL if it is out of date. They do **not** refresh the hook entries in `settings.json` — if you've moved the repo, run the installer interactively and pick option 4 (Reinstall hooks) instead.
 
 ## Uninstall
 
@@ -109,7 +109,7 @@ For most users the profile picker is enough. To hand-edit, open `hooks/config.js
 - **debug** enables logging to `hooks/hook-debug.log`
 - **palettes** holds the curated profile definitions; you generally don't need to touch this
 
-To swap sounds, drop `.wav` files into `~/.claude/hooks/terminal-hook-colors/sounds/` and update the config.
+To swap sounds, drop `.wav` files into the repo's `sounds/` directory and update the config.
 
 ## How It Works
 
@@ -126,7 +126,9 @@ This project solves that by:
 
 Because the sequences target a specific console session via `AttachConsole`, only the tab running that Claude instance is affected.
 
-The Win32 API calls are defined in `ConsoleApi.cs` and compiled to a DLL at install time against your local .NET runtime. This avoids recompiling on every hook invocation and keeps startup fast. If the DLL is missing, the hooks fall back to runtime compilation automatically.
+The Win32 API calls are defined in `ConsoleApi.cs` and compiled to a DLL at install time against your local .NET runtime. This avoids recompiling on every hook invocation and keeps startup fast. If the DLL is missing or older than `ConsoleApi.cs` (for example after a `git pull`), the hooks fall back to runtime compilation automatically until the installer rebuilds it.
+
+Each hook arms a watchdog that force-exits it after a deadline: 10 seconds for prompt submit, 20 for notifications, and `stopResetDelaySeconds` plus 30 for stop. Claude Code doesn't kill a hook that times out, so this keeps a stuck hook from lingering in the background. A notification sound longer than about 18 seconds gets cut off by it.
 
 The post-stop reset is cancellable. Instead of an unconditional `Start-Sleep` followed by reset, the stop hook waits on a named `EventWaitHandle` keyed by the target console PID. When a new prompt arrives during that window, the prompt-submit hook signals the event, the waiter wakes early, and the reset is skipped — so the busy color set by the new prompt is not clobbered mid-execution. Each tab uses its own event name (different target PIDs), so tabs don't interfere with each other.
 
@@ -138,7 +140,7 @@ The post-stop reset is cancellable. Instead of an unconditional `Start-Sleep` fo
 
 **Sounds don't play**: Ensure the `.wav` files exist in the `sounds/` directory and the filenames in `config.json` match.
 
-**Slow color changes**: Run `pwsh ./install.ps1 -Force` to recompile the DLL. If the DLL is missing, each hook invocation pays a ~300ms compilation penalty.
+**Slow color changes**: Run `pwsh ./install.ps1` and pick option 4 (Reinstall hooks) to recompile the DLL. If the DLL is missing or stale, each hook invocation pays a ~300ms compilation penalty. If the installer warns that the DLL is in use, stop the hook processes it lists and run it again.
 
 ## Platform Notes
 
