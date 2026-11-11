@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 public class ConsoleApi {
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -35,4 +37,17 @@ public class ConsoleApi {
 
     [DllImport("winmm.dll", SetLastError = true)]
     public static extern int waveOutSetVolume(IntPtr hwo, uint dwVolume);
+
+    public static void ArmWatchdog(int timeoutMs, string logPath) {
+        var t = new Thread(() => {
+            Thread.Sleep(timeoutMs);
+            if (logPath != null) {
+                File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss") +
+                    " [watchdog] deadline of " + timeoutMs + "ms hit, exiting\r\n");
+            }
+            Environment.Exit(1);
+        });
+        t.IsBackground = true;
+        t.Start();
+    }
 }

@@ -11,10 +11,12 @@ $script:INVALID_HANDLE = [IntPtr]::new(-1)
 
 if (-not ([System.Management.Automation.PSTypeName]'ConsoleApi').Type) {
     $dllPath = Join-Path $script:HookRoot 'ConsoleApi.dll'
-    if ([System.IO.File]::Exists($dllPath)) {
+    $csPath = Join-Path $script:HookRoot 'ConsoleApi.cs'
+    if ([System.IO.File]::Exists($dllPath) -and
+        [System.IO.File]::GetLastWriteTimeUtc($dllPath) -ge [System.IO.File]::GetLastWriteTimeUtc($csPath)) {
         Add-Type -Path $dllPath
     } else {
-        Add-Type -TypeDefinition ([System.IO.File]::ReadAllText((Join-Path $script:HookRoot 'ConsoleApi.cs')))
+        Add-Type -TypeDefinition ([System.IO.File]::ReadAllText($csPath))
     }
 }
 
@@ -24,6 +26,13 @@ function Write-HookDebug {
         $logPath = Join-Path $script:HookRoot 'hook-debug.log'
         Add-Content $logPath "$(Get-Date -Format 'HH:mm:ss') $Message"
     }
+}
+
+function Start-HookWatchdog {
+    param([int]$Seconds)
+    $logPath = if ($script:Config.debug) { Join-Path $script:HookRoot 'hook-debug.log' } else { $null }
+    [ConsoleApi]::ArmWatchdog($Seconds * 1000, $logPath)
+    Write-HookDebug "[watchdog] armed ${Seconds}s"
 }
 
 function Get-AncestorChain {
